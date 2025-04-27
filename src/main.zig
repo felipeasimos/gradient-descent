@@ -22,12 +22,9 @@ pub fn GradientDescent(comptime dtype: type, comptime funcs: anytype) type {
         random: std.Random,
         learning_rate: dtype = @as(dtype, 0),
         pub fn init(dataset: Dataset(dtype), random: std.Random) @This() {
-            var learning_rate: dtype = undefined;
-            random.bytes(std.mem.asBytes(&learning_rate));
             return .{
                 .dataset = dataset,
                 .random = random,
-                .learning_rate = learning_rate,
             };
         }
 
@@ -35,23 +32,29 @@ pub fn GradientDescent(comptime dtype: type, comptime funcs: anytype) type {
             self.random.bytes(std.mem.sliceAsBytes(&self.weights));
         }
 
-        pub fn full_f(weights: []dtype, x: dtype) dtype {
+        pub fn ones(self: *@This()) void {
+            for (0..self.weights.len) |i| {
+                self.weights[i] = @as(dtype, 0);
+            }
+        }
+
+        pub fn full_f(self: *@This(), x: dtype) dtype {
             var sum: dtype = @as(dtype, 0);
-            inline for (weights, 0..length) |w, i| {
+            inline for (self.weights, 0..length) |w, i| {
                 sum += w * funcs[i](x);
             }
             return sum;
         }
 
-        pub fn full_f_vec(weights: []dtype, xs: []dtype, result: []dtype) void {
-            for (xs, 0..) |x, i| {
-                result[i] = full_f(weights, x);
+        pub fn full_f_vec(self: *@This(), result: []dtype) void {
+            for (self.dataset.x, 0..) |x, i| {
+                result[i] = self.full_f(x);
             }
         }
 
-        pub fn residual(dataset: Dataset(dtype), weights: []dtype, result: []dtype) void {
-            for (dataset.y, dataset.x, 0..) |x, y, i| {
-                result[i] = y - full_f(weights, x);
+        pub fn residual(self: *@This(), result: []dtype) void {
+            for (self.dataset.y, self.dataset.x, 0..) |x, y, i| {
+                result[i] = y - full_f(self.weights, x);
             }
         }
 
@@ -63,20 +66,20 @@ pub fn GradientDescent(comptime dtype: type, comptime funcs: anytype) type {
             };
         }
 
-        pub fn mean_square_error(dataset: Dataset(dtype), weights: []dtype) f64 {
+        pub fn mean_square_error(self: *@This()) f64 {
             var sum: dtype = @as(dtype, 0);
-            for (dataset.y, dataset.x) |y, x| {
-                const r = y - full_f(weights, x);
+            for (self.dataset.y, self.dataset.x) |y, x| {
+                const r = y - self.full_f(x);
                 sum += r * r;
             }
-            return sum / castToFloat(dataset.x.len);
+            return sum / castToFloat(self.dataset.x.len);
         }
 
-        pub fn direction(dataset: Dataset(dtype), weights: []dtype, result: []dtype) void {
+        pub fn direction(self: *@This(), result: []dtype) void {
             inline for (0..length) |i| {
                 result[i] = @as(dtype, 0);
-                for (dataset.y, dataset.x) |y, x| {
-                    const residual_j = y - full_f(weights, x);
+                for (self.dataset.y, self.dataset.x) |y, x| {
+                    const residual_j = y - self.full_f(x);
                     result[i] += residual_j * funcs[i](x);
                 }
             }
@@ -85,7 +88,7 @@ pub fn GradientDescent(comptime dtype: type, comptime funcs: anytype) type {
         /// v^(k+1) = v^k - alpha gradient pi
         pub fn update_weights(self: *@This()) void {
             var direction_vec: [length]dtype = undefined;
-            direction(self.dataset, &self.weights, &direction_vec);
+            self.direction(&direction_vec);
 
             for (0..direction_vec.len) |i| {
                 self.weights[i] = self.weights[i] + self.learning_rate * direction_vec[i];
@@ -129,9 +132,10 @@ pub fn main() !void {
     const GradientDescentType = GradientDescent(f32, funcs);
     var gradient_descent = GradientDescentType.init(dataset, prng.random());
     gradient_descent.learning_rate = 0.01;
-    gradient_descent.randomize();
+    // gradient_descent.randomize();
+    gradient_descent.ones();
     for (0..50) |_| {
         gradient_descent.update_weights();
-        std.debug.print("mean square error: {}\n", .{GradientDescentType.mean_square_error(dataset, &gradient_descent.weights)});
+        std.debug.print("mean square error: {}\n", .{gradient_descent.mean_square_error()});
     }
 }
