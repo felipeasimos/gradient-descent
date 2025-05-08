@@ -112,7 +112,11 @@ pub fn GradientDescent(comptime dtype: type, comptime funcs: anytype) type {
             return sum;
         }
 
+        /// gradient pi = 2 A^t ( A v - Y )
         /// v^(k+1) = v^k - alpha gradient pi
+        /// v^(k+1) = v^k - alpha A^t (A v - Y)
+        /// v^(k+1) = v^k + alpha A^t r
+        /// v^(k+1) = v^k + alpha d
         pub fn update_weights(self: *@This()) void {
             var direction_vec: [length]dtype = undefined;
             self.direction(&direction_vec);
